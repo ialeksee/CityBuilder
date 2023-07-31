@@ -1269,12 +1269,12 @@ namespace olc
 		// State of keyboard		
 		bool		pKeyNewState[256] = { 0 };
 		bool		pKeyOldState[256] = { 0 };
-		HWButton	pKeyboardState[256] = { 0 };
+		HWButton	pKeyboardState[256] = { {0} };
 
 		// State of mouse
 		bool		pMouseNewState[nMouseButtons] = { 0 };
 		bool		pMouseOldState[nMouseButtons] = { 0 };
-		HWButton	pMouseState[nMouseButtons] = { 0 };
+		HWButton	pMouseState[nMouseButtons] = { {0} };
 
 		// The main engine thread
 		void		EngineThread();
@@ -2181,7 +2181,7 @@ namespace olc
 
 	void PixelGameEngine::DrawLine(int32_t x1, int32_t y1, int32_t x2, int32_t y2, Pixel p, uint32_t pattern)
 	{
-		int x, y, dx, dy, dx1, dy1, px, py, xe, ye, i;
+		int x, y, dx, dy, dx1, dy1, px, py, xe, ye;
 		dx = x2 - x1; dy = y2 - y1;
 
 		auto rol = [&](void) { pattern = (pattern << 1) | (pattern >> 31); return pattern & 1; };
@@ -2223,9 +2223,9 @@ namespace olc
 
 			if (rol()) Draw(x, y, p);
 
-			for (i = 0; x < xe; i++)
+			for (; x < xe; x++)
 			{
-				x = x + 1;
+				//x = x + 1;
 				if (px < 0)
 					px = px + 2 * dy1;
 				else
@@ -2249,9 +2249,9 @@ namespace olc
 
 			if (rol()) Draw(x, y, p);
 
-			for (i = 0; y < ye; i++)
+			for (; y < ye; y++)
 			{
-				y = y + 1;
+				//y = y + 1;
 				if (py <= 0)
 					py = py + 2 * dx1;
 				else
@@ -4217,7 +4217,7 @@ namespace olc
 		glRenderContext_t glRenderContext = 0;
 #endif
 
-		bool bSync = false;
+		//bool bSync = false;
 		olc::DecalMode nDecalMode = olc::DecalMode(-1); // Thanks Gusgo & Bispoo
 		olc::DecalStructure nDecalStructure = olc::DecalStructure(-1);
 #if defined(OLC_PLATFORM_X11)
@@ -4359,7 +4359,7 @@ namespace olc
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		}
 
-		void SetDecalMode(const olc::DecalMode& mode)
+		void SetDecalMode(const olc::DecalMode& mode) override
 		{
 			if (mode != nDecalMode)
 			{

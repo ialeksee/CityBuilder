@@ -8,13 +8,13 @@
             "name": "C++ Launch",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${fileDirname}/${fileBasenameNoExtension}",
+            "program": "${workspaceFolder}/${fileBasenameNoExtension}",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
             "externalConsole": false,
-            "miDebuggerPath": "/Users/ivo/buildspace/lldb-mi/build/src/lldb-mi"
+            "MIMode": "lldb"
           }
     ]
 }

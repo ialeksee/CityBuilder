@@ -1,3 +1,5 @@
+#include <cassert>
+#include <filesystem>
 #define OLC_PGE_APPLICATION
 #include "olcPixelGameEngine/olcPixelGameEngine.h"
 #include <cstdio>
@@ -35,8 +37,9 @@ class MainWindow : public olc::PixelGameEngine
 bool MainWindow::OnUserCreate()
 {
 	// Called once at the start, so create things here
+
 	pTexturedGrassTile = std::make_unique<olc::Sprite>("./Sprites/Ground/TexturedGrass.png");
-	pDeadGrassTile = std::make_unique<olc::Sprite>("./Sprites/Ground/DeadGrass.png");
+	pDeadGrassTile = std::make_unique<olc::Sprite>("./Sprites/Ground/TexturedGrass.png");
 	pGrassTile = std::make_unique<olc::Sprite>("./Sprites/Ground/Grass.png");
 
 	//16x16 pixels tile; 800x480 window

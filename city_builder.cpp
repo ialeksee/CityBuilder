@@ -1,5 +1,7 @@
 #include <cassert>
 #include <filesystem>
+#include <array>
+#include <fstream>
 #define OLC_PGE_APPLICATION
 #include "olcPixelGameEngine/olcPixelGameEngine.h"
 #include <cstdio>
@@ -13,10 +15,30 @@
 #define cScreenWidth 640
 #define cScreenHeight 480
 
+using namespace olc;
+
+//Set the world at 160x160 16 pixel wide square tiles
+const int cWorldSize = 160;
+const int cViewPortWidthTiles = 40;
+const int cViewPortHeightTiles = 30;
+
+class WorldTile {
+	olc::vi2d pos;
+	uint8_t tileID;
+
+	public:
+	WorldTile(olc::vi2d pos, uint8_t tileID) : pos(pos), tileID(tileID) {};
+	WorldTile(): pos({0,0}), tileID(0) {};
+	uint8_t getTileID() {return tileID;}
+	void setPositon(int x, int y) {pos.x = x; pos.y = y;}
+	void setTileID(uint8_t tileID) { this->tileID = tileID;}
+};
+
+
 class MainWindow : public olc::PixelGameEngine
 {
     public:
-        MainWindow() { sAppName = "CityBuilder";}
+        MainWindow() : viewportOrigin({0,0}) { sAppName = "CityBuilder";}
 		// Transformed view object to make world offsetting simple
 
 	private:
@@ -25,6 +47,9 @@ class MainWindow : public olc::PixelGameEngine
 		std::unique_ptr<olc::Sprite> pGrassTile;
 	   // The world map, stored as a 1D array
 	   std::vector<uint8_t> vWorldMap;
+	   std::array<std::array<WorldTile, cWorldSize>,cWorldSize> worldMap;
+	   vi2d viewportOrigin;
+
 	
 	bool OnUserCreate() override;
 
@@ -42,32 +67,111 @@ bool MainWindow::OnUserCreate()
 	pDeadGrassTile = std::make_unique<olc::Sprite>("./Sprites/Ground/TexturedGrass.png");
 	pGrassTile = std::make_unique<olc::Sprite>("./Sprites/Ground/Grass.png");
 
-	//16x16 pixels tile; 800x480 window
-	vWorldMap.resize(40*30);
-
-	for(int i = 0; i < vWorldMap.size(); i++)
+	//16x16 pixels tile; 160x160 tiles map
+	std::fstream fs;
+	fs.open("map.bin", std::ios::in);
+	if(fs.is_open())
 	{
-		vWorldMap[i] = (rand() % cTileSize) + 1;	
+		uint8_t tileArray[cWorldSize*cWorldSize];
+		fs.read ((char *)tileArray, sizeof(tileArray));
+		for(int y = 0, i = 0; y < cWorldSize; y++)
+		{
+			for(int x = 0; x < cWorldSize; x++)
+			{
+				worldMap[y][x].setPositon(x, y);
+				worldMap[y][x].setTileID(tileArray[i++]);
+			}
+		}
+		fs.close();
 	}
-
+	else
+	{
+		fs.open("map.bin", std::ios::in | std::ios::out | std::ios::app | std::ios::binary);
+		uint8_t tileArray[cWorldSize*cWorldSize];
+		//generate and save the map
+		for(int y = 0, i = 0; y < cWorldSize; y++)
+		{
+			for(int x = 0; x < cWorldSize; x++)
+			{
+				uint8_t tile = rand() % cTileSize + 1;
+				worldMap[y][x].setPositon(x, y);
+				worldMap[y][x].setTileID(tile);
+				tileArray[i++] = tile;
+			}
+		}
+		fs.write((const char *)tileArray, sizeof(tileArray));
+		fs.close();
+	}
 	return true;			
 }
 
+float fTargetFrameTime = 1.0f / 40.0f; // Virtual FPS of 40fps
+float fAccumulatedTime = 0.0f;
+
 bool MainWindow::OnUserUpdate(float fElapsedTime)
 {
-		int x = 0;
-		int y = 0;
-	//draw the map
-	for(int i = 0; i < vWorldMap.size(); i++)
+	int x = 0;
+	int y = 0;
+
+	fAccumulatedTime += fElapsedTime;
+	if (fAccumulatedTime >= fTargetFrameTime)
 	{
-		DrawTile(x, y, vWorldMap[i]);
-		x += cTileSize;
+		fAccumulatedTime -= fTargetFrameTime;
+		fElapsedTime = fTargetFrameTime;
+	}
+	else
+		return true; // Don't do anything this frame
+
+        // Continue as normal
+
+	vi2d mousePos = GetMousePos();
+
+	if(mousePos.x == 639)
+	{
+		if((viewportOrigin.x + cViewPortWidthTiles) != cWorldSize)
+			viewportOrigin.x++;
+	}
+
+	if(mousePos.x == 0)
+	{
+		if(viewportOrigin.x != 0)
+			viewportOrigin.x--;
+	}
+
+	if(mousePos.y == 479)
+	{
+		if((viewportOrigin.y + cViewPortHeightTiles) != cWorldSize)
+			viewportOrigin.y++;
+	}
+
+	if(mousePos.y == 0)
+	{
+		if(viewportOrigin.y != 0)
+			viewportOrigin.y--;
+	}
+
+	x = viewportOrigin.x;
+	y = viewportOrigin.y;
+
+	//draw the viewable portion of the map  40x30 tiles
+	for(int i = 0; i < cViewPortHeightTiles; i++)
+	{
+		for(int j = 0; j < cViewPortWidthTiles; j++)
+			DrawTile(j*cTileSize, i*cTileSize, worldMap[i+y][j+x].getTileID());
+/*		x += cTileSize;
 		if(x >= cScreenWidth)
 		{
 			x = 0;
 			y += cTileSize;
 		}
+		*/
 	}
+	std::string mousePosX = "Mouse pos X: " + std::to_string(GetMousePos().x);
+	std::string mousePosY = "Mouse pos Y: " + std::to_string(GetMousePos().y);
+
+	DrawString(0, 0, mousePosX, olc::BLACK, 2);
+	DrawString(0, 15, mousePosY, olc::BLACK, 2);
+
 
 
 	return true;
@@ -127,6 +231,8 @@ void MainWindow::DrawTile(int x, int y, uint8_t tileConst)
 			break;
 	}
 }
+
+
 
 int main()
 {

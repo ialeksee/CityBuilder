@@ -22,6 +22,38 @@ const int cWorldSize = 160;
 const int cViewPortWidthTiles = 40;
 const int cViewPortHeightTiles = 30;
 
+enum class MenuItem {house, none};
+
+class Menu{
+	olc::vi2d pos;
+	olc::vi2d size;
+
+	public:
+	Menu() : pos({60,370}), size({480,80}){};
+	olc::vi2d getOrigin(){return pos;};
+	olc::vi2d getSize(){return size;};
+	MenuItem getMenuItem(const olc::vi2d& cursorPos);
+	bool isPositionInside(const olc::vi2d& cursorPos);
+};
+
+MenuItem Menu::getMenuItem(const olc::vi2d& cursorPos)
+{
+	return MenuItem::house;
+}
+
+bool Menu::isPositionInside(const olc::vi2d& cursorPos)
+{
+	bool returnValue = false;
+
+	if(
+		((cursorPos.x >= pos.x) && (cursorPos.y >= pos.y))
+		 &&((cursorPos.x <= (pos+size).x) && (cursorPos.y <= (pos+size).y))
+	)
+		returnValue = true;
+
+	return returnValue;
+}
+
 class WorldTile {
 	olc::vi2d pos;
 	uint8_t tileID;
@@ -45,10 +77,13 @@ class MainWindow : public olc::PixelGameEngine
 		std::unique_ptr<olc::Sprite> pTexturedGrassTile;
 		std::unique_ptr<olc::Sprite> pDeadGrassTile;
 		std::unique_ptr<olc::Sprite> pGrassTile;
+		std::unique_ptr<olc::Sprite> pMenuSprite;
 	   // The world map, stored as a 1D array
 	   std::vector<uint8_t> vWorldMap;
 	   std::array<std::array<WorldTile, cWorldSize>,cWorldSize> worldMap;
 	   vi2d viewportOrigin;
+	   Menu mainMenu{};
+	   MenuItem selectedItem;
 
 	
 	bool OnUserCreate() override;
@@ -66,7 +101,9 @@ bool MainWindow::OnUserCreate()
 	pTexturedGrassTile = std::make_unique<olc::Sprite>("./Sprites/Ground/TexturedGrass.png");
 	pDeadGrassTile = std::make_unique<olc::Sprite>("./Sprites/Ground/TexturedGrass.png");
 	pGrassTile = std::make_unique<olc::Sprite>("./Sprites/Ground/Grass.png");
+	pMenuSprite = std::make_unique<olc::Sprite>("./Sprites/UI/Menu.png");
 
+	selectedItem = MenuItem::none;
 	//16x16 pixels tile; 160x160 tiles map
 	std::fstream fs;
 	fs.open("map.bin", std::ios::in);
@@ -118,61 +155,93 @@ bool MainWindow::OnUserUpdate(float fElapsedTime)
 	{
 		fAccumulatedTime -= fTargetFrameTime;
 		fElapsedTime = fTargetFrameTime;
+
+
+		vi2d mousePos = GetMousePos();
+
+		if(mousePos.x == 639)
+		{
+			if((viewportOrigin.x + cViewPortWidthTiles) != cWorldSize)
+				viewportOrigin.x++;
+		}
+
+		if(mousePos.x == 0)
+		{
+			if(viewportOrigin.x != 0)
+				viewportOrigin.x--;
+		}
+
+		if(mousePos.y == 479)
+		{
+			if((viewportOrigin.y + cViewPortHeightTiles) != cWorldSize)
+				viewportOrigin.y++;
+		}
+
+		if(mousePos.y == 0)
+		{
+			if(viewportOrigin.y != 0)
+				viewportOrigin.y--;
+		}
+
+		x = viewportOrigin.x;
+		y = viewportOrigin.y;
+
+		//draw the viewable portion of the map  40x30 tiles
+		for(int i = 0; i < cViewPortHeightTiles; i++)
+		{
+			for(int j = 0; j < cViewPortWidthTiles; j++)
+				DrawTile(j*cTileSize, i*cTileSize, worldMap[i+y][j+x].getTileID());
+	/*		x += cTileSize;
+			if(x >= cScreenWidth)
+			{
+				x = 0;
+				y += cTileSize;
+			}
+			*/
+		}
 	}
 	else
-		return true; // Don't do anything this frame
-
-        // Continue as normal
-
-	vi2d mousePos = GetMousePos();
-
-	if(mousePos.x == 639)
 	{
-		if((viewportOrigin.x + cViewPortWidthTiles) != cWorldSize)
-			viewportOrigin.x++;
-	}
 
-	if(mousePos.x == 0)
-	{
-		if(viewportOrigin.x != 0)
-			viewportOrigin.x--;
-	}
+			// Continue as normal
+		std::string mousePosX = "Mouse pos X: " + std::to_string(GetMousePos().x);
+		std::string mousePosY = "Mouse pos Y: " + std::to_string(GetMousePos().y);
+		std::string mouseClick = "Mouse clicked: false";
+		std::string selectedItemStr = "Selected item: none";
 
-	if(mousePos.y == 479)
-	{
-		if((viewportOrigin.y + cViewPortHeightTiles) != cWorldSize)
-			viewportOrigin.y++;
-	}
+		HWButton mouseButton = GetMouse(0);
 
-	if(mousePos.y == 0)
-	{
-		if(viewportOrigin.y != 0)
-			viewportOrigin.y--;
-	}
-
-	x = viewportOrigin.x;
-	y = viewportOrigin.y;
-
-	//draw the viewable portion of the map  40x30 tiles
-	for(int i = 0; i < cViewPortHeightTiles; i++)
-	{
-		for(int j = 0; j < cViewPortWidthTiles; j++)
-			DrawTile(j*cTileSize, i*cTileSize, worldMap[i+y][j+x].getTileID());
-/*		x += cTileSize;
-		if(x >= cScreenWidth)
+		if(mouseButton.bPressed)
 		{
-			x = 0;
-			y += cTileSize;
+			if(MenuItem::house == selectedItem)
+				selectedItem = MenuItem::none;
 		}
-		*/
+
+		if(mouseButton.bPressed || mouseButton.bHeld)
+		{
+			mouseClick = "Mouse clicked: true";
+
+			if(mainMenu.isPositionInside(GetMousePos()))
+				selectedItem = mainMenu.getMenuItem(GetMousePos());
+		}
+
+		if(MenuItem::none == selectedItem)
+			selectedItemStr = "Selected item: none";
+		
+		if(MenuItem::house == selectedItem)
+			selectedItemStr = "Selected item: house";
+
+		DrawString(0, 0, mousePosX, olc::BLACK, 2);
+		DrawString(0, 15, mousePosY, olc::BLACK, 2);
+		DrawString(0, 30, mouseClick, olc::BLACK, 2);
+		DrawString(0, 45, selectedItemStr, olc::BLACK, 2);
+
+		//draw the menu
+		DrawSprite(mainMenu.getOrigin(), pMenuSprite.get());
+		DrawRect(mainMenu.getOrigin(), mainMenu.getSize(), olc::BLACK);
+	//	FillRect(mainMenu.getOrigin(), mainMenu.getSize(), olc::CYAN);
+		//draw the cursor. The game objects will keep the state, the drawing is separate. If the cursor needs to display a house for instance, let the rendere check  and draw it.
 	}
-	std::string mousePosX = "Mouse pos X: " + std::to_string(GetMousePos().x);
-	std::string mousePosY = "Mouse pos Y: " + std::to_string(GetMousePos().y);
-
-	DrawString(0, 0, mousePosX, olc::BLACK, 2);
-	DrawString(0, 15, mousePosY, olc::BLACK, 2);
-
-
 
 	return true;
 }

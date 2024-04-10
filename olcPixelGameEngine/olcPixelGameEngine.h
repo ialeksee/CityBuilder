@@ -403,7 +403,7 @@ int main()
 // | COMPILER CONFIGURATION ODDITIES                                              |
 // O------------------------------------------------------------------------------O
 #pragma region compiler_config
-#define USE_EXPERIMENTAL_FS
+//#define USE_EXPERIMENTAL_FS
 #if defined(_WIN32)
 	#if _MSC_VER >= 1920 && _MSVC_LANG >= 201703L
 		#undef USE_EXPERIMENTAL_FS

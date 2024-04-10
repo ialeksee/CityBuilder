@@ -21,6 +21,9 @@ using namespace olc;
 const int cWorldSize = 160;
 const int cViewPortWidthTiles = 40;
 const int cViewPortHeightTiles = 30;
+const int cHousePrice = 10;
+int32_t money = 0;
+uint32_t population = 0;
 
 enum class MenuItem {house, none};
 
@@ -53,19 +56,42 @@ bool Menu::isPositionInside(const olc::vi2d& cursorPos)
 
 	return returnValue;
 }
+enum class BuildingType{house, none};
+
+//class building
+//tent
+//hunter lodge
+//farm
+//stockpile
+//counters -> population and food. 
 
 class WorldTile {
 	olc::vi2d pos;
 	uint8_t tileID;
+	uint8_t buildingID;
+	BuildingType buildingOnTile;
 
 	public:
-	WorldTile(olc::vi2d pos, uint8_t tileID) : pos(pos), tileID(tileID) {};
-	WorldTile(): pos({0,0}), tileID(0) {};
+	WorldTile(olc::vi2d pos, uint8_t tileID) : pos(pos), tileID(tileID), buildingID(5), buildingOnTile(BuildingType::none) {};
+	WorldTile(): pos({0,0}), tileID(0), buildingID(5), buildingOnTile(BuildingType::none) {};
 	uint8_t getTileID() {return tileID;}
 	void setPositon(int x, int y) {pos.x = x; pos.y = y;}
 	void setTileID(uint8_t tileID) { this->tileID = tileID;}
+	uint8_t getBuildingID() {
+		if (buildingOnTile != BuildingType::none) return buildingID;
+		return 0;
+       	};
+	void setBuildingOnTile(BuildingType buildng);
 };
 
+void WorldTile::setBuildingOnTile(BuildingType buildng)
+{
+	if ((money - cHousePrice >= 0) && (BuildingType::none == buildingOnTile))
+	{
+		buildingOnTile = buildng;
+		money -= cHousePrice;
+	}
+}
 
 class MainWindow : public olc::PixelGameEngine
 {
@@ -74,10 +100,16 @@ class MainWindow : public olc::PixelGameEngine
 		// Transformed view object to make world offsetting simple
 
 	private:
+
+		//lets store the important counters here for now:
+		//uint32_t population; // 4 bln people for a city should be enough...
+		//uint32_t food_stockpile; 
+
 		std::unique_ptr<olc::Sprite> pTexturedGrassTile;
 		std::unique_ptr<olc::Sprite> pDeadGrassTile;
 		std::unique_ptr<olc::Sprite> pGrassTile;
 		std::unique_ptr<olc::Sprite> pMenuSprite;
+		std::unique_ptr<olc::Sprite> pBuildingSprite;
 	   // The world map, stored as a 1D array
 	   std::vector<uint8_t> vWorldMap;
 	   std::array<std::array<WorldTile, cWorldSize>,cWorldSize> worldMap;
@@ -90,7 +122,7 @@ class MainWindow : public olc::PixelGameEngine
 
 	bool OnUserUpdate(float fElapsedTime) override;
 
-	void DrawTile(int x, int y, uint8_t tileConst);
+	void DrawTile(int x, int y, uint8_t tileConst, uint8_t buildingID);
 	olc::vi2d vBlockSize = { 16,16 };
 };
 
@@ -102,6 +134,9 @@ bool MainWindow::OnUserCreate()
 	pDeadGrassTile = std::make_unique<olc::Sprite>("./Sprites/Ground/TexturedGrass.png");
 	pGrassTile = std::make_unique<olc::Sprite>("./Sprites/Ground/Grass.png");
 	pMenuSprite = std::make_unique<olc::Sprite>("./Sprites/UI/Menu.png");
+	pBuildingSprite = std::make_unique<olc::Sprite>("./Sprites/Buildings/Red/RedHouses.png");
+
+	money = 100;
 
 	selectedItem = MenuItem::none;
 	//16x16 pixels tile; 160x160 tiles map
@@ -142,19 +177,28 @@ bool MainWindow::OnUserCreate()
 	return true;			
 }
 
-float fTargetFrameTime = 1.0f / 40.0f; // Virtual FPS of 40fps
-float fAccumulatedTime = 0.0f;
-
+float fTargetFrameTimeMove = 1.0f / 40.0f; // Virtual FPS of 40fps
+float fTargetFrameTimeRender = 1.0f / 80.0f; // Virtual FPS of 120fps
+float fAccumulatedTimeMove = 0.0f;
+float fAccumulatedTimeRender = 0.0f;
+// update game states
+// update population based on free houses
+// update resources
+// calculate tick
 bool MainWindow::OnUserUpdate(float fElapsedTime)
 {
 	int x = 0;
 	int y = 0;
 
-	fAccumulatedTime += fElapsedTime;
-	if (fAccumulatedTime >= fTargetFrameTime)
+	//check for free house
+	//for one free house increase the population with four
+	//if no free houses increase population with 1 per 2 citizens (pressure for houses)
+	fAccumulatedTimeMove += fElapsedTime;
+	fAccumulatedTimeRender += fElapsedTime;
+	if (fAccumulatedTimeMove >= fTargetFrameTimeMove)
 	{
-		fAccumulatedTime -= fTargetFrameTime;
-		fElapsedTime = fTargetFrameTime;
+		fAccumulatedTimeMove -= fTargetFrameTimeMove;
+		//fElapsedTime = fTargetFrameTimeMove;
 
 
 		vi2d mousePos = GetMousePos();
@@ -190,7 +234,7 @@ bool MainWindow::OnUserUpdate(float fElapsedTime)
 		for(int i = 0; i < cViewPortHeightTiles; i++)
 		{
 			for(int j = 0; j < cViewPortWidthTiles; j++)
-				DrawTile(j*cTileSize, i*cTileSize, worldMap[i+y][j+x].getTileID());
+				DrawTile(j*cTileSize, i*cTileSize, worldMap[i+y][j+x].getTileID(), worldMap[i+y][j+x].getBuildingID());
 	/*		x += cTileSize;
 			if(x >= cScreenWidth)
 			{
@@ -200,22 +244,21 @@ bool MainWindow::OnUserUpdate(float fElapsedTime)
 			*/
 		}
 	}
-	else
+	else  if (fAccumulatedTimeRender >= fTargetFrameTimeRender)
 	{
+		fAccumulatedTimeRender -= fTargetFrameTimeRender;
+		//fElapsedTime = fTargetFrameTimeRender;
 
 			// Continue as normal
-		std::string mousePosX = "Mouse pos X: " + std::to_string(GetMousePos().x);
-		std::string mousePosY = "Mouse pos Y: " + std::to_string(GetMousePos().y);
+//		std::string mousePosX = "Mouse pos X: " + std::to_string(GetMousePos().x);
+//		std::string mousePosY = "Mouse pos Y: " + std::to_string(GetMousePos().y);
 		std::string mouseClick = "Mouse clicked: false";
 		std::string selectedItemStr = "Selected item: none";
+		std::string moneyStr = "Money: " + std::to_string(money);
+		std::string popStr = "Population: " + std::to_string(population);
 
 		HWButton mouseButton = GetMouse(0);
 
-		if(mouseButton.bPressed)
-		{
-			if(MenuItem::house == selectedItem)
-				selectedItem = MenuItem::none;
-		}
 
 		if(mouseButton.bPressed || mouseButton.bHeld)
 		{
@@ -223,6 +266,18 @@ bool MainWindow::OnUserUpdate(float fElapsedTime)
 
 			if(mainMenu.isPositionInside(GetMousePos()))
 				selectedItem = mainMenu.getMenuItem(GetMousePos());
+			else
+			{
+				if(selectedItem == MenuItem::house)
+				{
+					//get the clicked tile position
+					int x1 = (GetMousePos().x+(viewportOrigin.x*cTileSize))/cTileSize;
+					int y1 = (GetMousePos().y+(viewportOrigin.y*cTileSize))/cTileSize;
+
+					worldMap[y1][x1].setBuildingOnTile(BuildingType::house);
+					//selectedItem = MenuItem::none;
+				}
+			}
 		}
 
 		if(MenuItem::none == selectedItem)
@@ -231,10 +286,10 @@ bool MainWindow::OnUserUpdate(float fElapsedTime)
 		if(MenuItem::house == selectedItem)
 			selectedItemStr = "Selected item: house";
 
-		DrawString(0, 0, mousePosX, olc::BLACK, 2);
-		DrawString(0, 15, mousePosY, olc::BLACK, 2);
-		DrawString(0, 30, mouseClick, olc::BLACK, 2);
-		DrawString(0, 45, selectedItemStr, olc::BLACK, 2);
+		DrawString(0, 0, mouseClick, olc::BLACK, 2);
+		DrawString(0, 15, selectedItemStr, olc::BLACK, 2);
+		DrawString(0, 30, moneyStr, olc::BLACK, 2);
+		DrawString(0, 45, popStr, olc::BLACK, 2);
 
 		//draw the menu
 		DrawSprite(mainMenu.getOrigin(), pMenuSprite.get());
@@ -242,11 +297,21 @@ bool MainWindow::OnUserUpdate(float fElapsedTime)
 	//	FillRect(mainMenu.getOrigin(), mainMenu.getSize(), olc::CYAN);
 		//draw the cursor. The game objects will keep the state, the drawing is separate. If the cursor needs to display a house for instance, let the rendere check  and draw it.
 	}
+	else
+	{
+		HWButton mouseButtonR = GetMouse(1);
+
+		if(mouseButtonR.bPressed)
+		{
+			if(MenuItem::house == selectedItem)
+				selectedItem = MenuItem::none;
+		}
+	}
 
 	return true;
 }
 
-void MainWindow::DrawTile(int x, int y, uint8_t tileConst)
+void MainWindow::DrawTile(int x, int y, uint8_t tileConst, uint8_t buildingID)
 {
 	switch(tileConst)
 	{
@@ -298,6 +363,10 @@ void MainWindow::DrawTile(int x, int y, uint8_t tileConst)
 		case 16:	
 			DrawPartialSprite(olc::vi2d(x, y), pGrassTile.get(), olc::vi2d(4, 0) * vBlockSize, vBlockSize);
 			break;
+	}
+	if(5 == buildingID)
+	{
+		DrawPartialSprite(olc::vi2d(x, y), pBuildingSprite.get(), olc::vi2d(2, 1) * vBlockSize, vBlockSize);
 	}
 }
 

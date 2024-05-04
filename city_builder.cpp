@@ -11,19 +11,21 @@
 
 #include "olcPixelGameEngine/utilities/olcUTIL_Camera2D.h"
 
-#define cTileSize 16
-#define cScreenWidth 640
-#define cScreenHeight 480
+constexpr uint8_t  cTileSize{16};
+constexpr uint32_t cScreenWidth{640};
+constexpr uint32_t cScreenHeight{480};
 
 using namespace olc;
 
 //Set the world at 160x160 16 pixel wide square tiles
-const int cWorldSize = 160;
-const int cViewPortWidthTiles = 40;
-const int cViewPortHeightTiles = 30;
-const int cHousePrice = 10;
-int32_t money = 0;
-uint32_t population = 0;
+constexpr uint32_t cWorldSize{160};
+constexpr uint32_t cViewPortWidthTiles{40};
+constexpr uint32_t cViewPortHeightTiles{30};
+constexpr int32_t cHousePrice{10};
+
+int32_t money{0};
+uint32_t population{0};
+uint32_t numberOfHouses{0};
 
 enum class MenuItem {house, none};
 
@@ -46,15 +48,13 @@ MenuItem Menu::getMenuItem(const olc::vi2d& cursorPos)
 
 bool Menu::isPositionInside(const olc::vi2d& cursorPos)
 {
-	bool returnValue = false;
-
 	if(
 		((cursorPos.x >= pos.x) && (cursorPos.y >= pos.y))
 		 &&((cursorPos.x <= (pos+size).x) && (cursorPos.y <= (pos+size).y))
 	)
-		returnValue = true;
+		return true;
 
-	return returnValue;
+	return false;
 }
 enum class BuildingType{house, none};
 
@@ -77,10 +77,12 @@ class WorldTile {
 	uint8_t getTileID() {return tileID;}
 	void setPositon(int x, int y) {pos.x = x; pos.y = y;}
 	void setTileID(uint8_t tileID) { this->tileID = tileID;}
-	uint8_t getBuildingID() {
-		if (buildingOnTile != BuildingType::none) return buildingID;
-		return 0;
-       	};
+	uint8_t getBuildingID()
+    {
+        if (buildingOnTile != BuildingType::none)
+            return buildingID;
+        return 0;
+    }
 	void setBuildingOnTile(BuildingType buildng);
 };
 
@@ -90,13 +92,14 @@ void WorldTile::setBuildingOnTile(BuildingType buildng)
 	{
 		buildingOnTile = buildng;
 		money -= cHousePrice;
+        numberOfHouses++;
 	}
 }
 
-class MainWindow : public olc::PixelGameEngine
+class CityBuilder : public olc::PixelGameEngine
 {
     public:
-        MainWindow() : viewportOrigin({0,0}) { sAppName = "CityBuilder";}
+        CityBuilder() : viewportOrigin({0,0}) { sAppName = "CityBuilder";}
 		// Transformed view object to make world offsetting simple
 
 	private:
@@ -118,15 +121,20 @@ class MainWindow : public olc::PixelGameEngine
 	   MenuItem selectedItem;
 
 	
-	bool OnUserCreate() override;
+        bool OnUserCreate() override;
 
-	bool OnUserUpdate(float fElapsedTime) override;
+        bool OnUserUpdate(float fElapsedTime) override;
 
-	void DrawTile(int x, int y, uint8_t tileConst, uint8_t buildingID);
-	olc::vi2d vBlockSize = { 16,16 };
+        void DrawTile(int x, int y, uint8_t tileConst, uint8_t buildingID);
+        olc::vi2d vBlockSize = { cTileSize,cTileSize };
+
+        void HandleViewport(float fElapsedTime);
+        void HandleMouseEvents(float fElapsedTime);
+        void HandleSimulation(float fElapsedTime);
+
 };
 
-bool MainWindow::OnUserCreate()
+bool CityBuilder::OnUserCreate()
 {
 	// Called once at the start, so create things here
 
@@ -177,25 +185,20 @@ bool MainWindow::OnUserCreate()
 	return true;			
 }
 
-float fTargetFrameTimeMove = 1.0f / 40.0f; // Virtual FPS of 40fps
-float fTargetFrameTimeRender = 1.0f / 80.0f; // Virtual FPS of 120fps
-float fAccumulatedTimeMove = 0.0f;
-float fAccumulatedTimeRender = 0.0f;
+    float fAccumulatedTimeMove{0.0f};
+    float fAccumulatedTimeRender{0.0f};
+    float fAccumulatedTimeSim{0.0f};
 // update game states
 // update population based on free houses
 // update resources
 // calculate tick
-bool MainWindow::OnUserUpdate(float fElapsedTime)
+void CityBuilder::HandleViewport(float fElapsedTime)
 {
-	int x = 0;
-	int y = 0;
-
-	//check for free house
-	//for one free house increase the population with four
-	//if no free houses increase population with 1 per 2 citizens (pressure for houses)
+    constexpr float fTargetFrameTimeMove = 1.0f / 40.0f; // Virtual FPS of 40fps
+	uint32_t x{0};
+	uint32_t y{0};
 	fAccumulatedTimeMove += fElapsedTime;
-	fAccumulatedTimeRender += fElapsedTime;
-	if (fAccumulatedTimeMove >= fTargetFrameTimeMove)
+    if (fAccumulatedTimeMove >= fTargetFrameTimeMove)
 	{
 		fAccumulatedTimeMove -= fTargetFrameTimeMove;
 		//fElapsedTime = fTargetFrameTimeMove;
@@ -244,7 +247,13 @@ bool MainWindow::OnUserUpdate(float fElapsedTime)
 			*/
 		}
 	}
-	else  if (fAccumulatedTimeRender >= fTargetFrameTimeRender)
+}
+
+void CityBuilder::HandleMouseEvents(float fElapsedTime)
+{
+    constexpr float fTargetFrameTimeRender = 1.0f / 60.0f; // Virtual FPS of 60fps
+	fAccumulatedTimeRender += fElapsedTime;
+	if (fAccumulatedTimeRender >= fTargetFrameTimeRender)
 	{
 		fAccumulatedTimeRender -= fTargetFrameTimeRender;
 		//fElapsedTime = fTargetFrameTimeRender;
@@ -297,21 +306,45 @@ bool MainWindow::OnUserUpdate(float fElapsedTime)
 	//	FillRect(mainMenu.getOrigin(), mainMenu.getSize(), olc::CYAN);
 		//draw the cursor. The game objects will keep the state, the drawing is separate. If the cursor needs to display a house for instance, let the rendere check  and draw it.
 	}
-	else
-	{
-		HWButton mouseButtonR = GetMouse(1);
+}
 
-		if(mouseButtonR.bPressed)
-		{
-			if(MenuItem::house == selectedItem)
-				selectedItem = MenuItem::none;
-		}
-	}
+void CityBuilder::HandleSimulation(float fElapsedTime)
+{
+    constexpr float fTargetFrameSimTime = 1.0f; // update each second (1 fps)                                             
+    fAccumulatedTimeSim += fElapsedTime;
+	if (fAccumulatedTimeSim >= fTargetFrameSimTime)
+	{
+        fAccumulatedTimeSim -= fTargetFrameSimTime;
+        uint32_t maxPopulation = numberOfHouses*4;
+		fAccumulatedTimeSim -= fTargetFrameSimTime;
+        money += population; //to tweak... some kind of taxation ration maybe 
+        if(population < maxPopulation)
+            population += 1; //also to tweak population growth
+    }
+}
+
+
+bool CityBuilder::OnUserUpdate(float fElapsedTime)
+{
+
+	//check for free house
+	//for one free house increase the population with four
+	//if no free houses increase population with 1 per 2 citizens (pressure for houses)
+    HandleViewport(fElapsedTime);
+    HandleMouseEvents(fElapsedTime);
+    HandleSimulation(fElapsedTime);
+
+    HWButton mouseButtonR = GetMouse(1);
+    if(mouseButtonR.bPressed)
+    {
+        if(MenuItem::house == selectedItem)
+            selectedItem = MenuItem::none;
+    }
 
 	return true;
 }
 
-void MainWindow::DrawTile(int x, int y, uint8_t tileConst, uint8_t buildingID)
+void CityBuilder::DrawTile(int x, int y, uint8_t tileConst, uint8_t buildingID)
 {
 	switch(tileConst)
 	{
@@ -374,9 +407,9 @@ void MainWindow::DrawTile(int x, int y, uint8_t tileConst, uint8_t buildingID)
 
 int main()
 {
-    MainWindow wnd;
-    wnd.Construct(cScreenWidth, cScreenHeight, 2, 2);
-    wnd.Start();
+    CityBuilder game;
+    game.Construct(cScreenWidth, cScreenHeight, 2, 2);
+    game.Start();
 
     return 0;
 }

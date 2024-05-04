@@ -30,3 +30,16 @@
 *.exe
 *.out
 *.app
+
+#vim swap files
+*.swp
+
+#dSYM debug symbols
+*.dSYM
+
+#the executable
+city_builder
+
+#MacOs stuff
+.DS_Store
+map.bin

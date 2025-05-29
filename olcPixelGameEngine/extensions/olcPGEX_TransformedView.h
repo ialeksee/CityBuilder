@@ -3,7 +3,7 @@
 
 	+-------------------------------------------------------------+
 	|         OneLoneCoder Pixel Game Engine Extension            |
-	|                 Transformed View v1.08                      |
+	|                 Transformed View v1.10                      |
 	+-------------------------------------------------------------+
 
 	NOTE: UNDER ACTIVE DEVELOPMENT - THERE ARE BUGS/GLITCHES
@@ -18,7 +18,7 @@
 	License (OLC-3)
 	~~~~~~~~~~~~~~~
 
-	Copyright 2018 - 2022 OneLoneCoder.com
+	Copyright 2018 - 2025 OneLoneCoder.com
 
 	Redistribution and use in source and binary forms, with or without
 	modification, are permitted provided that the following conditions
@@ -59,7 +59,7 @@
 
 	Author
 	~~~~~~
-	David Barr, aka javidx9, �OneLoneCoder 2019, 2020, 2021, 2022
+	David Barr, aka javidx9, ©OneLoneCoder 2019, 2020, 2021, 2022, 2023, 2024, 2025
 
 	Revisions:
 	1.00:	Initial Release
@@ -74,13 +74,18 @@
 	1.07:   +DrawRectDecal()
 			+GetPGE()
 	1.08:  +DrawPolygonDecal() with tint overload, akin to PGE
+	1.09:  +SetScaleExtents() - Sets range that world scale can exist within
+		   +EnableScaleClamp() - Applies a range that scaling is clamped to
+				These are both useful for having zoom clamped between a min and max
+				without weird panning artefacts occuring
+	1.10:	Hitched in some "shader" PGEX things
 */
 
 #pragma once
 #ifndef OLC_PGEX_TRANSFORMEDVIEW_H
 #define OLC_PGEX_TRANSFORMEDVIEW_H
 
-#include "../olcPixelGameEngine.h"
+#include "olcPixelGameEngine.h"
 
 
 
@@ -116,6 +121,9 @@ namespace olc
 		virtual bool IsPointVisible(const olc::vf2d& vPos) const;
 		virtual bool IsRectVisible(const olc::vf2d& vPos, const olc::vf2d& vSize) const;
 		virtual void HandlePanAndZoom(const int nMouseButton = 2, const float fZoomRate = 0.1f, const bool bPan = true, const bool bZoom = true);
+		void SetScaleExtents(const olc::vf2d& vScaleMin, const olc::vf2d& vScaleMax);
+		void EnableScaleClamp(const bool bEnable);
+
 	protected:
 		olc::vf2d m_vWorldOffset = { 0.0f, 0.0f };
 		olc::vf2d m_vWorldScale = { 1.0f, 1.0f };
@@ -124,6 +132,9 @@ namespace olc
 		bool m_bPanning = false;
 		olc::vf2d m_vStartPan = { 0.0f, 0.0f };
 		olc::vi2d m_vViewArea;
+		bool m_bZoomClamp = false;
+		olc::vf2d m_vMaxScale = { 0.0f, 0.0f };
+		olc::vf2d m_vMinScale = { 0.0f, 0.0f };
 
 	public: // Hopefully, these should look familiar!
 		// Plots a single point
@@ -195,7 +206,7 @@ namespace olc
 		void DrawPolygonDecal(olc::Decal* decal, const std::vector<olc::vf2d>& pos, const std::vector<olc::vf2d>& uv, const std::vector<olc::Pixel>& colours, const olc::Pixel tint);
 
 
-#if defined(OLC_PGEX_SHADER)
+#if defined(OLC_USING_PGEX_SHADER)
 		// Shader Specific
 		void DrawDecal(olc::Shade& shader, const olc::vf2d & pos, olc::Decal * decal, const olc::vf2d & scale = { 1.0f,1.0f }, const olc::Pixel & tint = olc::WHITE);
 		void DrawPartialDecal(olc::Shade& shader, const olc::vf2d& pos, olc::Decal* decal, const olc::vf2d& source_pos, const olc::vf2d& source_size, const olc::vf2d& scale = { 1.0f,1.0f }, const olc::Pixel& tint = olc::WHITE);
@@ -253,6 +264,7 @@ namespace olc
 	void TransformedView::SetWorldScale(const olc::vf2d& vScale)
 	{
 		m_vWorldScale = vScale;
+		if (m_bZoomClamp) m_vWorldScale = m_vWorldScale.clamp(m_vMinScale, m_vMaxScale);
 	}
 
 	void TransformedView::SetViewArea(const olc::vi2d& vViewArea)
@@ -275,10 +287,22 @@ namespace olc
 		return GetWorldBR() - GetWorldTL();
 	}
 
+	void TransformedView::SetScaleExtents(const olc::vf2d& vScaleMin, const olc::vf2d& vScaleMax)
+	{
+		m_vMaxScale = vScaleMax;
+		m_vMinScale = vScaleMin;
+	}
+
+	void TransformedView::EnableScaleClamp(const bool bEnable)
+	{
+		m_bZoomClamp = bEnable;
+	}
+
 	void TransformedView::ZoomAtScreenPos(const float fDeltaZoom, const olc::vi2d& vPos)
 	{
 		olc::vf2d vOffsetBeforeZoom = ScreenToWorld(vPos);
 		m_vWorldScale *= fDeltaZoom;
+		if (m_bZoomClamp) m_vWorldScale = m_vWorldScale.clamp(m_vMinScale, m_vMaxScale);
 		olc::vf2d vOffsetAfterZoom = ScreenToWorld(vPos);
 		m_vWorldOffset += vOffsetBeforeZoom - vOffsetAfterZoom;
 	}
@@ -287,6 +311,7 @@ namespace olc
 	{
 		olc::vf2d vOffsetBeforeZoom = ScreenToWorld(vPos);
 		m_vWorldScale = { fZoom, fZoom };
+		if (m_bZoomClamp) m_vWorldScale = m_vWorldScale.clamp(m_vMinScale, m_vMaxScale);
 		olc::vf2d vOffsetAfterZoom = ScreenToWorld(vPos);
 		m_vWorldOffset += vOffsetBeforeZoom - vOffsetAfterZoom;
 	}
@@ -680,7 +705,7 @@ namespace olc
 
 
 
-#if defined (OLC_PGEX_SHADER)
+#if defined (OLC_USING_PGEX_SHADER)
 
 	void TransformedView::DrawDecal(olc::Shade &shade, const olc::vf2d& pos, olc::Decal* decal, const olc::vf2d& scale, const olc::Pixel& tint)
 	{

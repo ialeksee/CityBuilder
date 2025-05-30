@@ -1,4 +1,5 @@
 #include <cassert>
+#include <cstdint>
 #include <filesystem>
 #include <array>
 #include <fstream>
@@ -16,7 +17,8 @@ constexpr uint32_t cScreenWidth{640};
 constexpr uint32_t cScreenHeight{480};
 
 using namespace olc;
-
+constexpr uint32_t cMapWidth{2048};
+constexpr uint32_t cMapHeight{1024};
 //Set the world at 160x160 16 pixel wide square tiles
 constexpr uint32_t cWorldSize{160};
 constexpr uint32_t cViewPortWidthTiles{40};
@@ -113,7 +115,8 @@ class CityBuilder : public olc::PixelGameEngine
 		std::unique_ptr<olc::Sprite> pGrassTile;
 		std::unique_ptr<olc::Sprite> pMenuSprite;
 		std::unique_ptr<olc::Sprite> pBuildingSprite;
-	   // The world map, stored as a 1D array
+		std::unique_ptr<olc::Sprite> pTerrain;
+	// The world map, stored as a 1D array
 	   std::vector<uint8_t> vWorldMap;
 	   std::array<std::array<WorldTile, cWorldSize>,cWorldSize> worldMap;
 	   vi2d viewportOrigin;
@@ -143,7 +146,7 @@ bool CityBuilder::OnUserCreate()
 	pGrassTile = std::make_unique<olc::Sprite>("./Sprites/Ground/Grass.png");
 	pMenuSprite = std::make_unique<olc::Sprite>("./Sprites/UI/Menu.png");
 	pBuildingSprite = std::make_unique<olc::Sprite>("./Sprites/Buildings/Red/RedHouses.png");
-
+	pTerrain = std::make_unique<olc::Sprite>("./Sprites/maps/green_map.png");
 	money = 100;
 
 	selectedItem = MenuItem::none;
@@ -182,6 +185,8 @@ bool CityBuilder::OnUserCreate()
 		fs.write((const char *)tileArray, sizeof(tileArray));
 		fs.close();
 	}
+
+	DrawSprite(0,0, pTerrain.get());
 	return true;			
 }
 
@@ -194,7 +199,7 @@ bool CityBuilder::OnUserCreate()
 // calculate tick
 void CityBuilder::HandleViewport(float fElapsedTime)
 {
-    constexpr float fTargetFrameTimeMove = 1.0f / 40.0f; // Virtual FPS of 40fps
+    constexpr float fTargetFrameTimeMove = 1.0f / 160.0f; // Virtual FPS of 160fps
 	uint32_t x{0};
 	uint32_t y{0};
 	fAccumulatedTimeMove += fElapsedTime;
@@ -208,7 +213,7 @@ void CityBuilder::HandleViewport(float fElapsedTime)
 
 		if(mousePos.x == 639)
 		{
-			if((viewportOrigin.x + cViewPortWidthTiles) != cWorldSize)
+			if((viewportOrigin.x + cScreenWidth) != cMapWidth)
 				viewportOrigin.x++;
 		}
 
@@ -220,7 +225,7 @@ void CityBuilder::HandleViewport(float fElapsedTime)
 
 		if(mousePos.y == 479)
 		{
-			if((viewportOrigin.y + cViewPortHeightTiles) != cWorldSize)
+			if((viewportOrigin.y + cScreenHeight) != cMapHeight)
 				viewportOrigin.y++;
 		}
 
@@ -233,19 +238,8 @@ void CityBuilder::HandleViewport(float fElapsedTime)
 		x = viewportOrigin.x;
 		y = viewportOrigin.y;
 
-		//draw the viewable portion of the map  40x30 tiles
-		for(int i = 0; i < cViewPortHeightTiles; i++)
-		{
-			for(int j = 0; j < cViewPortWidthTiles; j++)
-				DrawTile(j*cTileSize, i*cTileSize, worldMap[i+y][j+x].getTileID(), worldMap[i+y][j+x].getBuildingID());
-	/*		x += cTileSize;
-			if(x >= cScreenWidth)
-			{
-				x = 0;
-				y += cTileSize;
-			}
-			*/
-		}
+		//draw the viewable portion of the map
+		DrawPartialSprite(0, 0, pTerrain.get(), x, y, cScreenWidth, cScreenHeight);
 	}
 }
 
@@ -295,14 +289,14 @@ void CityBuilder::HandleMouseEvents(float fElapsedTime)
 		if(MenuItem::house == selectedItem)
 			selectedItemStr = "Selected item: house";
 
-		DrawString(0, 0, mouseClick, olc::BLACK, 2);
-		DrawString(0, 15, selectedItemStr, olc::BLACK, 2);
-		DrawString(0, 30, moneyStr, olc::BLACK, 2);
-		DrawString(0, 45, popStr, olc::BLACK, 2);
+//		DrawString(0, 0, mouseClick, olc::BLACK, 2);
+//		DrawString(0, 15, selectedItemStr, olc::BLACK, 2);
+//		DrawString(0, 30, moneyStr, olc::BLACK, 2);
+//		DrawString(0, 45, popStr, olc::BLACK, 2);
 
 		//draw the menu
-		DrawSprite(mainMenu.getOrigin(), pMenuSprite.get());
-		DrawRect(mainMenu.getOrigin(), mainMenu.getSize(), olc::BLACK);
+//		DrawSprite(mainMenu.getOrigin(), pMenuSprite.get());
+//		DrawRect(mainMenu.getOrigin(), mainMenu.getSize(), olc::BLACK);
 	//	FillRect(mainMenu.getOrigin(), mainMenu.getSize(), olc::CYAN);
 		//draw the cursor. The game objects will keep the state, the drawing is separate. If the cursor needs to display a house for instance, let the rendere check  and draw it.
 	}
@@ -340,6 +334,7 @@ bool CityBuilder::OnUserUpdate(float fElapsedTime)
         if(MenuItem::house == selectedItem)
             selectedItem = MenuItem::none;
     }
+
 
 	return true;
 }
